@@ -216,10 +216,22 @@
             });
         }
 
+        async function getBybitServerTime() {
+            try {
+                const res = await fetch('https://api.bybit.com/v5/market/time');
+                const data = await res.json();
+                if (data.retCode === 0 && data.result && data.result.timeNano) {
+                    return Math.floor(parseInt(data.result.timeNano) / 1000000);
+                }
+            } catch(e) {}
+            return Date.now();
+        }
+
         async function fetchBybitBalance() {
             if (!apiKey || !apiSecret) return;
-            const timestamp = Date.now();
-            const recvWindow = 5000;
+            
+            const timestamp = await getBybitServerTime();
+            const recvWindow = 10000;
 
             const queryUnified = `accountType=UNIFIED&timestamp=${timestamp}&recvWindow=${recvWindow}`;
             const signatureUnified = CryptoJS.HmacSHA256(timestamp + apiKey + recvWindow + queryUnified, apiSecret).toString();
@@ -268,10 +280,10 @@
                     document.getElementById('connection-badge').className = 'text-[10px] font-mono px-2 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30';
                     isLive = true;
                 } else {
-                    alert(`Bybit zavrnil (Koda ${data.retCode}): ${data.retMsg}`);
+                    alert(`Bybit odgovor (Koda ${data.retCode}): ${data.retMsg}`);
                 }
             } catch (err) {
-                alert(`Tehnična napaka: ${err.message}`);
+                alert(`Napaka pri povezavi: ${err.message}`);
             }
         }
 
@@ -286,8 +298,8 @@
             if (isLive && currentCategory === 'CRYPTO') {
                 const side = signal.type.includes('BUY') ? 'Buy' : 'Sell';
                 const qty = (tradeAmountUSD / signal.price).toFixed(5);
-                const timestamp = Date.now();
-                const recvWindow = 5000;
+                const timestamp = await getBybitServerTime();
+                const recvWindow = 10000;
 
                 const body = {
                     category: "spot",
