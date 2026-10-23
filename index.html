@@ -34,7 +34,7 @@
         </div>
     </header>
 
-    <!-- Balance & Amount Bar -->
+    <!-- Balance Bar -->
     <div class="bg-slate-900/90 border-b border-slate-800/80 px-4 py-3 space-y-2 text-xs font-mono">
         <div class="flex justify-between items-center">
             <div>
@@ -58,7 +58,7 @@
         </div>
     </div>
 
-    <!-- Main Content Container -->
+    <!-- Main Content -->
     <div class="p-3 space-y-4 max-w-xl mx-auto w-full">
 
         <div class="bg-slate-900 border border-slate-800 p-1.5 rounded-xl grid grid-cols-4 gap-1 text-center text-xs font-mono">
@@ -216,21 +216,31 @@
             });
         }
 
-        function generateSignature(timestamp, key, recvWindow, queryString) {
-            const originString = timestamp + key + recvWindow + queryString;
-            return CryptoJS.HmacSHA256(originString, apiSecret).toString(CryptoJS.enc.Hex);
+        // Pridobi točen strežniški čas z Bybit borze
+        async function getBybitServerTime() {
+            try {
+                const res = await fetch('https://api.bybit.com/v5/market/time');
+                const data = await res.json();
+                if (data && data.result && data.result.timeNano) {
+                    return Math.floor(parseInt(data.result.timeNano) / 1000000);
+                }
+            } catch(e) {}
+            return Date.now();
         }
 
         async function fetchBybitBalance() {
             if (!apiKey || !apiSecret) return;
             
-            const timestamp = Date.now();
-            const recvWindow = "5000";
+            const timestamp = await getBybitServerTime();
+            const recvWindow = "10000";
             const queryString = "accountType=UNIFIED";
-            const signature = generateSignature(timestamp, apiKey, recvWindow, queryString);
+            
+            // HMAC SHA256 Podpis po Bybit V5 specifikaciji
+            const signOrigin = timestamp + apiKey + recvWindow + queryString;
+            const signature = CryptoJS.HmacSHA256(signOrigin, apiSecret).toString(CryptoJS.enc.Hex);
 
             try {
-                let res = await fetch(`https://api.bybit.com/v5/account/wallet-balance?${queryString}`, {
+                const response = await fetch(`https://api.bybit.com/v5/account/wallet-balance?${queryString}`, {
                     method: 'GET',
                     headers: {
                         'X-BAPI-API-KEY': apiKey,
@@ -240,31 +250,13 @@
                     }
                 });
 
-                if (!res.ok) {
-                    const text = await res.text();
-                    alert(`Bybit strežnik vrnil status ${res.status}: ${text}`);
+                const textData = await response.text();
+                if (!textData) {
+                    alert('Bybit je vrnil prazen odgovor. Preverite, da so API ključi ustvarjeni z "No IP Restriction".');
                     return;
                 }
 
-                let data = await res.json();
-
-                if (data.retCode !== 0) {
-                    // Poskusimo še s SPOT varianto
-                    const querySpot = "accountType=SPOT";
-                    const sigSpot = generateSignature(timestamp, apiKey, recvWindow, querySpot);
-                    res = await fetch(`https://api.bybit.com/v5/account/wallet-balance?${querySpot}`, {
-                        method: 'GET',
-                        headers: {
-                            'X-BAPI-API-KEY': apiKey,
-                            'X-BAPI-SIGN': sigSpot,
-                            'X-BAPI-TIMESTAMP': timestamp.toString(),
-                            'X-BAPI-RECV-WINDOW': recvWindow
-                        }
-                    });
-                    if (res.ok) {
-                        data = await res.json();
-                    }
-                }
+                const data = JSON.parse(textData);
 
                 if (data.retCode === 0 && data.result && data.result.list && data.result.list.length > 0) {
                     const wallet = data.result.list[0];
@@ -281,10 +273,10 @@
                     document.getElementById('connection-badge').className = 'text-[10px] font-mono px-2 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30';
                     isLive = true;
                 } else {
-                    alert(`Bybit zavrnil (Koda ${data.retCode}): ${data.retMsg}`);
+                    alert(`Bybit sporočilo (Koda ${data.retCode}): ${data.retMsg}`);
                 }
             } catch (err) {
-                alert(`Napaka pri branju odgovora: ${err.message}`);
+                alert(`Napaka pri povezavi: ${err.message}`);
             }
         }
 
@@ -299,8 +291,8 @@
             if (isLive && currentCategory === 'CRYPTO') {
                 const side = signal.type.includes('BUY') ? 'Buy' : 'Sell';
                 const qty = (tradeAmountUSD / signal.price).toFixed(5);
-                const timestamp = Date.now();
-                const recvWindow = "5000";
+                const timestamp = await getBybitServerTime();
+                const recvWindow = "10000";
 
                 const body = {
                     category: "spot",
@@ -311,7 +303,8 @@
                 };
 
                 const bodyString = JSON.stringify(body);
-                const signature = CryptoJS.HmacSHA256(timestamp + apiKey + recvWindow + bodyString, apiSecret).toString(CryptoJS.enc.Hex);
+                const signOrigin = timestamp + apiKey + recvWindow + bodyString;
+                const signature = CryptoJS.HmacSHA256(signOrigin, apiSecret).toString(CryptoJS.enc.Hex);
 
                 try {
                     const res = await fetch('https://api.bybit.com/v5/order/create', {
@@ -325,7 +318,10 @@
                         },
                         body: bodyString
                     });
-                    const data = await res.json();
+                    
+                    const textData = await res.text();
+                    const data = JSON.parse(textData);
+
                     if (data.retCode === 0) {
                         alert(`Uspešen PRAVI trade na Bybitu za ${signal.label} v vrednosti $${tradeAmountUSD}!`);
                         fetchBybitBalance();
