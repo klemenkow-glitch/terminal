@@ -221,16 +221,13 @@
             
             const timestamp = Date.now().toString();
             const recvWindow = "5000";
-            const queryString = "accountType=UNIFIED";
-            
-            const signOrigin = timestamp + apiKey + recvWindow + queryString;
-            const signature = CryptoJS.HmacSHA256(signOrigin, apiSecret).toString(CryptoJS.enc.Hex);
 
-            const targetUrl = `https://api.bybit.com/v5/account/wallet-balance?${queryString}`;
-            const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
+            async function makeRequest(accType) {
+                const queryString = `accountType=${accType}`;
+                const signOrigin = timestamp + apiKey + recvWindow + queryString;
+                const signature = CryptoJS.HmacSHA256(signOrigin, apiSecret).toString(CryptoJS.enc.Hex);
 
-            try {
-                const response = await fetch(proxyUrl, {
+                const response = await fetch(`https://api.bybit.com/v5/account/wallet-balance?${queryString}`, {
                     method: 'GET',
                     headers: {
                         'X-BAPI-API-KEY': apiKey,
@@ -239,10 +236,17 @@
                         'X-BAPI-RECV-WINDOW': recvWindow
                     }
                 });
+                return await response.json();
+            }
 
-                const data = await response.json();
+            try {
+                let data = await makeRequest("UNIFIED");
 
-                if (data && data.retCode === 0 && data.result && data.result.list && data.result.list.length > 0) {
+                if (data.retCode !== 0) {
+                    data = await makeRequest("SPOT");
+                }
+
+                if (data.retCode === 0 && data.result && data.result.list && data.result.list.length > 0) {
                     const wallet = data.result.list[0];
                     let totalEquity = parseFloat(wallet.totalEquity || wallet.totalWalletBalance || 0);
                     
@@ -257,7 +261,7 @@
                     document.getElementById('connection-badge').className = 'text-[10px] font-mono px-2 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30';
                     isLive = true;
                 } else {
-                    alert(`Bybit odgovor (Koda ${data ? data.retCode : 'neznano'}): ${data ? data.retMsg : 'Neznana napaka'}`);
+                    alert(`Bybit napaka (Koda ${data.retCode}): ${data.retMsg}`);
                 }
             } catch (err) {
                 alert(`Napaka pri povezavi: ${err.message}`);
@@ -290,11 +294,8 @@
                 const signOrigin = timestamp + apiKey + recvWindow + bodyString;
                 const signature = CryptoJS.HmacSHA256(signOrigin, apiSecret).toString(CryptoJS.enc.Hex);
 
-                const targetUrl = 'https://api.bybit.com/v5/order/create';
-                const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
-
                 try {
-                    const res = await fetch(proxyUrl, {
+                    const res = await fetch('https://api.bybit.com/v5/order/create', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
@@ -308,11 +309,11 @@
                     
                     const data = await res.json();
 
-                    if (data && data.retCode === 0) {
+                    if (data.retCode === 0) {
                         alert(`Uspešen PRAVI trade na Bybitu za ${signal.label} v vrednosti $${tradeAmountUSD}!`);
                         fetchBybitBalance();
                     } else {
-                        alert(`Bybit napaka: ${data ? data.retMsg : 'Neznana napaka'}`);
+                        alert(`Bybit napaka (Koda ${data.retCode}): ${data.retMsg}`);
                     }
                 } catch(e) {
                     alert('Napaka pri izvedbi naročila na Bybit.');
