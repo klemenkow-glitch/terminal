@@ -7,7 +7,6 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@400;500;600;700&display=swap');
         body { font-family: 'Inter', sans-serif; background-color: #0b0e14; color: #e2e8f0; -webkit-tap-highlight-color: transparent; }
@@ -16,6 +15,11 @@
     </style>
 </head>
 <body class="min-h-screen flex flex-col text-sm bg-slate-950 pb-16">
+
+    <!-- SEM VSTAVITE VAŠ RENDER URL -->
+    <script>
+        const BACKEND_URL = 'https://bybit-backend-xjrm.onrender.com'; // <-- Sem prilepite vaš URL z Renderja!
+    </script>
 
     <!-- Header Bar -->
     <header class="bg-slate-900 border-b border-slate-800 px-3 py-2.5 flex items-center justify-between sticky top-0 z-30 shadow-md">
@@ -219,32 +223,14 @@
         async function fetchBybitBalance() {
             if (!apiKey || !apiSecret) return;
             
-            const timestamp = Date.now().toString();
-            const recvWindow = "5000";
-
-            async function makeRequest(accType) {
-                const queryString = `accountType=${accType}`;
-                const signOrigin = timestamp + apiKey + recvWindow + queryString;
-                const signature = CryptoJS.HmacSHA256(signOrigin, apiSecret).toString(CryptoJS.enc.Hex);
-
-                const response = await fetch(`https://api.bybit.com/v5/account/wallet-balance?${queryString}`, {
-                    method: 'GET',
-                    headers: {
-                        'X-BAPI-API-KEY': apiKey,
-                        'X-BAPI-SIGN': signature,
-                        'X-BAPI-TIMESTAMP': timestamp,
-                        'X-BAPI-RECV-WINDOW': recvWindow
-                    }
-                });
-                return await response.json();
-            }
-
             try {
-                let data = await makeRequest("UNIFIED");
+                const response = await fetch(`${BACKEND_URL}/api/balance`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ apiKey, apiSecret })
+                });
 
-                if (data.retCode !== 0) {
-                    data = await makeRequest("SPOT");
-                }
+                const data = await response.json();
 
                 if (data.retCode === 0 && data.result && data.result.list && data.result.list.length > 0) {
                     const wallet = data.result.list[0];
@@ -264,7 +250,7 @@
                     alert(`Bybit napaka (Koda ${data.retCode}): ${data.retMsg}`);
                 }
             } catch (err) {
-                alert(`Napaka pri povezavi: ${err.message}`);
+                alert(`Napaka pri povezavi s strežnikom: ${err.message}`);
             }
         }
 
@@ -279,32 +265,18 @@
             if (isLive && currentCategory === 'CRYPTO') {
                 const side = signal.type.includes('BUY') ? 'Buy' : 'Sell';
                 const qty = (tradeAmountUSD / signal.price).toFixed(5);
-                const timestamp = Date.now().toString();
-                const recvWindow = "5000";
-
-                const body = {
-                    category: "spot",
-                    symbol: signal.sym,
-                    side: side,
-                    orderType: "Market",
-                    qty: qty.toString()
-                };
-
-                const bodyString = JSON.stringify(body);
-                const signOrigin = timestamp + apiKey + recvWindow + bodyString;
-                const signature = CryptoJS.HmacSHA256(signOrigin, apiSecret).toString(CryptoJS.enc.Hex);
 
                 try {
-                    const res = await fetch('https://api.bybit.com/v5/order/create', {
+                    const res = await fetch(`${BACKEND_URL}/api/order`, {
                         method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-BAPI-API-KEY': apiKey,
-                            'X-BAPI-SIGN': signature,
-                            'X-BAPI-TIMESTAMP': timestamp,
-                            'X-BAPI-RECV-WINDOW': recvWindow
-                        },
-                        body: bodyString
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            apiKey,
+                            apiSecret,
+                            symbol: signal.sym,
+                            side,
+                            qty
+                        })
                     });
                     
                     const data = await res.json();
@@ -313,10 +285,10 @@
                         alert(`Uspešen PRAVI trade na Bybitu za ${signal.label} v vrednosti $${tradeAmountUSD}!`);
                         fetchBybitBalance();
                     } else {
-                        alert(`Bybit napaka (Koda ${data.retCode}): ${data.retMsg}`);
+                        alert(`Bybit napaka: ${data.retMsg}`);
                     }
                 } catch(e) {
-                    alert('Napaka pri izvedbi naročila na Bybit.');
+                    alert('Napaka pri izvedbi naročila.');
                 }
             } else {
                 const tradeId = Date.now();
@@ -345,7 +317,7 @@
             list.innerHTML = '';
             activeTrades.forEach((t) => {
                 const isPos = t.pnl >= 0;
-                const card = document.createElement('div');
+                card = document.createElement('div');
                 card.className = "bg-slate-950 border border-slate-800 p-3 rounded-xl flex justify-between items-center font-mono text-xs";
                 card.innerHTML = `
                     <div>
