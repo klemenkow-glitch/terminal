@@ -16,9 +16,9 @@
 </head>
 <body class="min-h-screen flex flex-col text-sm bg-slate-950 pb-16">
 
-    <!-- SEM VSTAVITE VAŠ RENDER URL -->
     <script>
-        const BACKEND_URL = 'https://bybit-backend-xjrm.onrender.com'; // <-- Sem prilepite vaš URL z Renderja!
+        // SEM PRILEPITE VAŠ URL Z RENDERJA (brez / na koncu):
+        const BACKEND_URL = 'https://bybit-backend-xjrm.onrender.com'; 
     </script>
 
     <!-- Header Bar -->
@@ -62,7 +62,7 @@
         </div>
     </div>
 
-    <!-- Main Content -->
+    <!-- Main Content Container -->
     <div class="p-3 space-y-4 max-w-xl mx-auto w-full">
 
         <div class="bg-slate-900 border border-slate-800 p-1.5 rounded-xl grid grid-cols-4 gap-1 text-center text-xs font-mono">
@@ -232,7 +232,7 @@
 
                 const data = await response.json();
 
-                if (data.retCode === 0 && data.result && data.result.list && data.result.list.length > 0) {
+                if (data && data.retCode === 0 && data.result && data.result.list && data.result.list.length > 0) {
                     const wallet = data.result.list[0];
                     let totalEquity = parseFloat(wallet.totalEquity || wallet.totalWalletBalance || 0);
                     
@@ -247,7 +247,9 @@
                     document.getElementById('connection-badge').className = 'text-[10px] font-mono px-2 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30';
                     isLive = true;
                 } else {
-                    alert(`Bybit napaka (Koda ${data.retCode}): ${data.retMsg}`);
+                    const code = (data && data.retCode !== undefined) ? data.retCode : 'Neznano';
+                    const msg = (data && data.retMsg) ? data.retMsg : 'Prazno sporočilo';
+                    alert(`Bybit odgovor (Koda ${code}): ${msg}`);
                 }
             } catch (err) {
                 alert(`Napaka pri povezavi s strežnikom: ${err.message}`);
@@ -281,11 +283,12 @@
                     
                     const data = await res.json();
 
-                    if (data.retCode === 0) {
+                    if (data && data.retCode === 0) {
                         alert(`Uspešen PRAVI trade na Bybitu za ${signal.label} v vrednosti $${tradeAmountUSD}!`);
                         fetchBybitBalance();
                     } else {
-                        alert(`Bybit napaka: ${data.retMsg}`);
+                        const msg = (data && data.retMsg) ? data.retMsg : 'Neznana napaka';
+                        alert(`Bybit napaka: ${msg}`);
                     }
                 } catch(e) {
                     alert('Napaka pri izvedbi naročila.');
@@ -317,7 +320,7 @@
             list.innerHTML = '';
             activeTrades.forEach((t) => {
                 const isPos = t.pnl >= 0;
-                card = document.createElement('div');
+                const card = document.createElement('div');
                 card.className = "bg-slate-950 border border-slate-800 p-3 rounded-xl flex justify-between items-center font-mono text-xs";
                 card.innerHTML = `
                     <div>
