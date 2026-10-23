@@ -216,53 +216,54 @@
             });
         }
 
-        async function getBybitServerTime() {
-            try {
-                const res = await fetch('https://api.bybit.com/v5/market/time');
-                const data = await res.json();
-                if (data.retCode === 0 && data.result && data.result.timeNano) {
-                    return Math.floor(parseInt(data.result.timeNano) / 1000000);
-                }
-            } catch(e) {}
-            return Date.now();
+        function generateSignature(timestamp, key, recvWindow, queryString) {
+            const originString = timestamp + key + recvWindow + queryString;
+            return CryptoJS.HmacSHA256(originString, apiSecret).toString(CryptoJS.enc.Hex);
         }
 
         async function fetchBybitBalance() {
             if (!apiKey || !apiSecret) return;
             
-            const timestamp = await getBybitServerTime();
-            const recvWindow = 10000;
-
-            const queryUnified = `accountType=UNIFIED&timestamp=${timestamp}&recvWindow=${recvWindow}`;
-            const signatureUnified = CryptoJS.HmacSHA256(timestamp + apiKey + recvWindow + queryUnified, apiSecret).toString();
+            const timestamp = Date.now();
+            const recvWindow = "5000";
+            const queryString = "accountType=UNIFIED";
+            const signature = generateSignature(timestamp, apiKey, recvWindow, queryString);
 
             try {
-                let res = await fetch(`https://api.bybit.com/v5/account/wallet-balance?${queryUnified}`, {
+                let res = await fetch(`https://api.bybit.com/v5/account/wallet-balance?${queryString}`, {
                     method: 'GET',
                     headers: {
                         'X-BAPI-API-KEY': apiKey,
-                        'X-BAPI-SIGN': signatureUnified,
+                        'X-BAPI-SIGN': signature,
                         'X-BAPI-TIMESTAMP': timestamp.toString(),
-                        'X-BAPI-RECV-WINDOW': recvWindow.toString()
+                        'X-BAPI-RECV-WINDOW': recvWindow
                     }
                 });
+
+                if (!res.ok) {
+                    const text = await res.text();
+                    alert(`Bybit strežnik vrnil status ${res.status}: ${text}`);
+                    return;
+                }
 
                 let data = await res.json();
 
                 if (data.retCode !== 0) {
-                    const querySpot = `accountType=SPOT&timestamp=${timestamp}&recvWindow=${recvWindow}`;
-                    const signatureSpot = CryptoJS.HmacSHA256(timestamp + apiKey + recvWindow + querySpot, apiSecret).toString();
-
+                    // Poskusimo še s SPOT varianto
+                    const querySpot = "accountType=SPOT";
+                    const sigSpot = generateSignature(timestamp, apiKey, recvWindow, querySpot);
                     res = await fetch(`https://api.bybit.com/v5/account/wallet-balance?${querySpot}`, {
                         method: 'GET',
                         headers: {
                             'X-BAPI-API-KEY': apiKey,
-                            'X-BAPI-SIGN': signatureSpot,
+                            'X-BAPI-SIGN': sigSpot,
                             'X-BAPI-TIMESTAMP': timestamp.toString(),
-                            'X-BAPI-RECV-WINDOW': recvWindow.toString()
+                            'X-BAPI-RECV-WINDOW': recvWindow
                         }
                     });
-                    data = await res.json();
+                    if (res.ok) {
+                        data = await res.json();
+                    }
                 }
 
                 if (data.retCode === 0 && data.result && data.result.list && data.result.list.length > 0) {
@@ -280,10 +281,10 @@
                     document.getElementById('connection-badge').className = 'text-[10px] font-mono px-2 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30';
                     isLive = true;
                 } else {
-                    alert(`Bybit odgovor (Koda ${data.retCode}): ${data.retMsg}`);
+                    alert(`Bybit zavrnil (Koda ${data.retCode}): ${data.retMsg}`);
                 }
             } catch (err) {
-                alert(`Napaka pri povezavi: ${err.message}`);
+                alert(`Napaka pri branju odgovora: ${err.message}`);
             }
         }
 
@@ -298,8 +299,8 @@
             if (isLive && currentCategory === 'CRYPTO') {
                 const side = signal.type.includes('BUY') ? 'Buy' : 'Sell';
                 const qty = (tradeAmountUSD / signal.price).toFixed(5);
-                const timestamp = await getBybitServerTime();
-                const recvWindow = 10000;
+                const timestamp = Date.now();
+                const recvWindow = "5000";
 
                 const body = {
                     category: "spot",
@@ -310,7 +311,7 @@
                 };
 
                 const bodyString = JSON.stringify(body);
-                const signature = CryptoJS.HmacSHA256(timestamp + apiKey + recvWindow + bodyString, apiSecret).toString();
+                const signature = CryptoJS.HmacSHA256(timestamp + apiKey + recvWindow + bodyString, apiSecret).toString(CryptoJS.enc.Hex);
 
                 try {
                     const res = await fetch('https://api.bybit.com/v5/order/create', {
@@ -320,7 +321,7 @@
                             'X-BAPI-API-KEY': apiKey,
                             'X-BAPI-SIGN': signature,
                             'X-BAPI-TIMESTAMP': timestamp.toString(),
-                            'X-BAPI-RECV-WINDOW': recvWindow.toString()
+                            'X-BAPI-RECV-WINDOW': recvWindow
                         },
                         body: bodyString
                     });
