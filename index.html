@@ -37,7 +37,7 @@
         const statusBox = document.getElementById('statusBox');
 
         if (!apiKey || !apiSecret) {
-            alert('Prosimo, izpolnite obe polji za ključ!');
+            alert('Prosimo, vnesite oba ključa!');
             return;
         }
 
@@ -47,25 +47,22 @@
         try {
             const res = await fetch('http://localhost:3000/api/balance', {
                 method: 'POST',
-                headers: { 
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json' 
-                },
-                body: JSON.stringify({ apiKey: apiKey, apiSecret: apiSecret })
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ apiKey, apiSecret })
             });
 
-            const data = await res.json();
+            const resData = await res.json();
 
-            if (data && data.retCode === 0) {
+            if (resData.status === 'success') {
                 statusBox.style.color = '#4CAF50';
-                statusBox.innerHTML = '<b>Povezano uspešno!</b><br>Vaš Bybit račun je pripravljen.';
+                statusBox.innerHTML = `<b>Povezano uspešno!</b><br>Vaš Bybit račun je pripravljen.`;
             } else {
                 statusBox.style.color = '#f44336';
-                statusBox.innerHTML = `<b>Napaka (${data.retCode}):</b> ${data.retMsg}`;
+                statusBox.innerHTML = `<b>Napaka (${resData.code || 'N/A'}):</b> ${resData.message || 'Neznana napaka'}`;
             }
         } catch (err) {
             statusBox.style.color = '#f44336';
-            statusBox.innerHTML = `<b>Lokalna napaka:</b> Preverite, ali teče 'node server.js'.`;
+            statusBox.innerHTML = `<b>Lokalna napaka:</b> Preverite, ali teče 'node server.js' na vašem računalniku.`;
         }
     }
 </script>
