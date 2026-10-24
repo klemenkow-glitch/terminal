@@ -7,11 +7,11 @@
     <style>
         body { font-family: Arial, sans-serif; background-color: #121214; color: #ffffff; padding: 20px; }
         .card { background-color: #1e1e22; padding: 20px; border-radius: 8px; max-width: 500px; margin: auto; }
-        input, button { width: 100%; padding: 10px; margin: 8px 0; border-radius: 4px; border: none; box-sizing: border-box; }
-        input { background-color: #2b2b30; color: #fff; }
-        button { background-color: #f7a600; color: #000; font-weight: bold; cursor: pointer; }
+        input, button { width: 100%; padding: 12px; margin: 8px 0; border-radius: 4px; border: none; box-sizing: border-box; }
+        input { background-color: #2b2b30; color: #fff; font-size: 14px; }
+        button { background-color: #f7a600; color: #000; font-weight: bold; font-size: 15px; cursor: pointer; }
         button:hover { background-color: #e09600; }
-        .status { margin-top: 15px; padding: 10px; border-radius: 4px; background: #2b2b30; word-break: break-all; }
+        .status { margin-top: 15px; padding: 12px; border-radius: 4px; background: #2b2b30; word-break: break-all; }
     </style>
 </head>
 <body>
@@ -31,17 +31,13 @@
 </div>
 
 <script>
-    window.isSandbox = false;
-    window.isTestnet = false;
-    const BACKEND_URL = 'http://localhost:3000';
-
     async function connectBybit() {
         const apiKey = document.getElementById('apiKey').value.trim();
         const apiSecret = document.getElementById('apiSecret').value.trim();
         const statusBox = document.getElementById('statusBox');
 
         if (!apiKey || !apiSecret) {
-            alert('Prosimo, vnesite oba ključa!');
+            alert('Prosimo, izpolnite obe polji za ključ!');
             return;
         }
 
@@ -49,10 +45,13 @@
         statusBox.innerHTML = 'Povezovanje z Bybitom...';
 
         try {
-            const res = await fetch(`${BACKEND_URL}/api/balance`, {
+            const res = await fetch('http://localhost:3000/api/balance', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ apiKey, apiSecret })
+                headers: { 
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json' 
+                },
+                body: JSON.stringify({ apiKey: apiKey, apiSecret: apiSecret })
             });
 
             const data = await res.json();
@@ -60,16 +59,13 @@
             if (data && data.retCode === 0) {
                 statusBox.style.color = '#4CAF50';
                 statusBox.innerHTML = '<b>Povezano uspešno!</b><br>Vaš Bybit račun je pripravljen.';
-            } else if (data && data.retCode !== undefined) {
-                statusBox.style.color = '#f44336';
-                statusBox.innerHTML = `<b>Napaka (${data.retCode}):</b> ${data.retMsg || 'Neznana napaka'}`;
             } else {
                 statusBox.style.color = '#f44336';
-                statusBox.innerHTML = `<b>Strežnik ni vrnil ustreznega odgovora.</b>`;
+                statusBox.innerHTML = `<b>Napaka (${data.retCode}):</b> ${data.retMsg}`;
             }
         } catch (err) {
             statusBox.style.color = '#f44336';
-            statusBox.innerHTML = `<b>Lokalna napaka:</b> Preverite, ali teče 'node server.js' na vašem računalniku.`;
+            statusBox.innerHTML = `<b>Lokalna napaka:</b> Preverite, ali teče 'node server.js'.`;
         }
     }
 </script>
