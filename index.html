@@ -11,7 +11,7 @@
         input { background-color: #2b2b30; color: #fff; }
         button { background-color: #f7a600; color: #000; font-weight: bold; cursor: pointer; }
         button:hover { background-color: #e09600; }
-        .status { margin-top: 15px; padding: 10px; border-radius: 4px; background: #2b2b30; }
+        .status { margin-top: 15px; padding: 10px; border-radius: 4px; background: #2b2b30; word-break: break-all; }
     </style>
 </head>
 <body>
@@ -31,7 +31,6 @@
 </div>
 
 <script>
-    // Prisilno izklopimo Sandbox in nastavimo lokalni backend
     window.isSandbox = false;
     window.isTestnet = false;
     const BACKEND_URL = 'http://localhost:3000';
@@ -46,6 +45,7 @@
             return;
         }
 
+        statusBox.style.color = '#ffffff';
         statusBox.innerHTML = 'Povezovanje z Bybitom...';
 
         try {
@@ -57,16 +57,19 @@
 
             const data = await res.json();
 
-            if (data.retCode === 0) {
+            if (data && data.retCode === 0) {
                 statusBox.style.color = '#4CAF50';
-                statusBox.innerHTML = '<b>Povezano uspešno!</b><br>Stanje pridobljeno.';
+                statusBox.innerHTML = '<b>Povezano uspešno!</b><br>Vaš Bybit račun je pripravljen.';
+            } else if (data && data.retCode !== undefined) {
+                statusBox.style.color = '#f44336';
+                statusBox.innerHTML = `<b>Napaka (${data.retCode}):</b> ${data.retMsg || 'Neznana napaka'}`;
             } else {
                 statusBox.style.color = '#f44336';
-                statusBox.innerHTML = `<b>Napaka (${data.retCode}):</b> ${data.retMsg}`;
+                statusBox.innerHTML = `<b>Strežnik ni vrnil ustreznega odgovora.</b>`;
             }
         } catch (err) {
             statusBox.style.color = '#f44336';
-            statusBox.innerHTML = `<b>Lokalna napaka:</b> ${err.message}`;
+            statusBox.innerHTML = `<b>Lokalna napaka:</b> Preverite, ali teče 'node server.js' na vašem računalniku.`;
         }
     }
 </script>
